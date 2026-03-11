@@ -794,9 +794,9 @@ class DashboardComponent {
           }
         }
 
-        // Show 📌 next to row number for baseline rows
+        // Show 📌 after row number for baseline rows, keeps alignment
         const idxStr = isBaseline
-          ? th.fg("accent", `📌${String(i + 1)}`.padEnd(col.idx))
+          ? th.fg("dim", String(i + 1)) + th.fg("accent", "📌".padEnd(col.idx - String(i + 1).length))
           : th.fg("dim", String(i + 1).padEnd(col.idx));
 
         let rowLine =
