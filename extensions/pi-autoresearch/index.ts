@@ -685,7 +685,8 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
       // ignore
     }
 
-    const sysLines = [
+    // Static instructions in system prompt (cacheable — doesn't change between turns)
+    const systemAddition = [
       "\n\n## Autoresearch Mode (ACTIVE)",
       "You are in autoresearch mode. Your goal is to optimize the primary metric through an autonomous experiment loop.",
       "Use run_experiment and log_experiment tools. Optimize ruthlessly for the primary metric.",
@@ -694,9 +695,15 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
       "log_experiment auto-commits on keep. Do NOT commit manually.",
       "Results are persisted to autoresearch.jsonl.",
       "NEVER STOP. Loop indefinitely until interrupted.",
-    ];
+    ].join("\n");
 
-    // Include experiment state so it survives compaction
+    // Dynamic state in message (changes each turn — must NOT go in system prompt to preserve cache)
+    const msgParts: string[] = [];
+
+    if (rulesContent) {
+      msgParts.push(`<autoresearch-rules>\n${rulesContent}\n</autoresearch-rules>`);
+    }
+
     if (state.results.length > 0) {
       const baseline = findBaselineMetric(state.results);
       let bestPrimary: number | null = null;
@@ -714,32 +721,31 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
       const stateTitle = state.name
         ? `## ${state.name} (${state.results.length} runs)`
         : `## Experiment State (${state.results.length} runs)`;
-      sysLines.push("", stateTitle);
-      sysLines.push(`Baseline: ${state.metricName} = ${formatNum(baseline, state.metricUnit)} (#1)`);
+      const stateLines = [stateTitle];
+      stateLines.push(`Baseline: ${state.metricName} = ${formatNum(baseline, state.metricUnit)} (#1)`);
       if (bestPrimary !== null && baseline !== null && baseline !== 0) {
         const pct = ((bestPrimary - baseline) / baseline) * 100;
-        sysLines.push(`Best: ${state.metricName} = ${formatNum(bestPrimary, state.metricUnit)} (#${bestRunNum}, ${pct > 0 ? "+" : ""}${pct.toFixed(1)}%)`);
+        stateLines.push(`Best: ${state.metricName} = ${formatNum(bestPrimary, state.metricUnit)} (#${bestRunNum}, ${pct > 0 ? "+" : ""}${pct.toFixed(1)}%)`);
       }
 
-      // Last 6 experiments
       const recentStart = Math.max(0, state.results.length - 6);
-      sysLines.push("", "Recent:");
+      stateLines.push("", "Recent:");
       for (let i = recentStart; i < state.results.length; i++) {
         const r = state.results[i];
-        sysLines.push(`  #${i + 1} ${r.status} ${formatNum(r.metric, state.metricUnit)} — ${r.description}`);
+        stateLines.push(`  #${i + 1} ${r.status} ${formatNum(r.metric, state.metricUnit)} — ${r.description}`);
       }
-    }
 
-    const systemAddition = sysLines.join("\n");
+      msgParts.push(`<autoresearch-state>\n${stateLines.join("\n")}\n</autoresearch-state>`);
+    }
 
     const result: Record<string, unknown> = {
       systemPrompt: event.systemPrompt + systemAddition,
     };
 
-    if (rulesContent) {
+    if (msgParts.length > 0) {
       result.message = {
         customType: "autoresearch-context",
-        content: `<autoresearch-rules>\n${rulesContent}\n</autoresearch-rules>`,
+        content: msgParts.join("\n\n"),
         display: false,
       };
     }
