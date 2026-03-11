@@ -118,11 +118,10 @@ LOOP FOREVER:
    - Removing unnecessary work (unused setup, redundant transforms)
    - Structural changes (splitting, merging, reordering)
 2. Edit files with the idea
-3. `git add -A && git commit -m "short description"`
-4. Use `run_experiment` with `./autoresearch.sh`
-5. Parse the `METRIC` lines from the output. Use `log_experiment` to record the result with the primary metric and secondary `metrics` dict.
-6. If metric improved AND constraints met → keep (status: `keep`). Append to the Progress Log in `autoresearch.md`.
-7. If metric worse OR constraints broken → `git reset --hard HEAD~1` (status: `discard` or `crash`)
+3. Use `run_experiment` with `./autoresearch.sh`
+4. Parse the `METRIC` lines from the output. Use `log_experiment` to record the result with the primary metric and secondary `metrics` dict. **`log_experiment` automatically commits** with the description as commit message and a `Result: {...}` trailer containing all metrics.
+5. If metric improved AND constraints met → keep (status: `keep`). Append to the Progress Log in `autoresearch.md`.
+6. If metric worse OR constraints broken → `git reset --hard HEAD~1` (status: `discard` or `crash`)
 8. Repeat
 
 **Simplicity criterion**: all else being equal, simpler is better. Removing code for equal results is a win.

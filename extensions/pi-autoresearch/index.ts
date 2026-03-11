@@ -774,8 +774,8 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
     promptGuidelines: [
       "Always call log_experiment after run_experiment to record the result.",
       "After run_experiment, always call log_experiment to record the result.",
+      "log_experiment automatically runs git add -A && git commit with the description and a Result trailer. Do NOT commit manually before calling log_experiment.",
       "Use status 'keep' if the metric improved, 'discard' if worse, 'crash' if it failed.",
-      "Update dailyContext.md throughout the session: log completed work, decisions, and carry-forward items.",
     ],
     parameters: LogParams,
 
@@ -869,6 +869,25 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
       }
 
       text += `\n(${state.totalExperiments} experiments total)`;
+
+      // Auto-commit with metrics trailer
+      try {
+        const resultData: Record<string, unknown> = {
+          status: params.status,
+          [state.metricName || "metric"]: params.metric,
+          ...secondaryMetrics,
+        };
+        if (isBaseline) resultData.new_baseline = true;
+
+        const trailerJson = JSON.stringify(resultData);
+        const commitMsg = `${params.description}\n\nResult: ${trailerJson}`;
+
+        await pi.exec("bash", ["-c",
+          `git add -A && git diff --cached --quiet || git commit -m ${JSON.stringify(commitMsg)}`
+        ], { cwd: ctx.cwd, timeout: 10000 });
+      } catch {
+        // Don't fail the log if git commit fails
+      }
 
       return {
         content: [{ type: "text", text }],
